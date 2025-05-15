@@ -1,0 +1,60 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-radius: 0.5rem;
+    border: none;
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+    font-weight: 500;
+}
+
+.nav-link.active {
+    background-color: rgba(13, 110, 253, 0.1);
+    color: #0d6efd !important;
+    font-weight: 500;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+}
+
+.btn-warning {
+    color: white;
+}
+
+#dataStatus {
+    font-size: 14px;
+    font-style: italic;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+}
+
+.grade-input {
+    width: 100px;
+    display: inline-block;
+}
+
+/* Login page styles */
+.login-logo {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 50%;
+    margin-bottom: 1rem;
+}
