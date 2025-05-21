@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Enrollment System - Login</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body {
+      background: linear-gradient(to right, #d2e5f5, #a8edea);
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .login-card {
+      background: #ffffff;
+      border: none;
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+
+    .login-header {
+      background: linear-gradient(to right, #4e54c8, #8f94fb);
+      padding: 30px 0;
+    }
+
+    .login-header h4 {
+      margin-top: 0;
+    }
+
+    .form-control:focus {
+      border-color: #4e54c8;
+      box-shadow: 0 0 0 0.2rem rgba(78, 84, 200, 0.25);
+    }
+
+    .btn-primary {
+      background: #4e54c8;
+      border: none;
+      border-radius: 25px;
+      transition: background 0.3s;
+      margin-top: 10px;
+    }
+
+    .btn-primary:hover {
+      background: #3c3fa0;
+    }
+
+    .alert {
+      font-size: 0.9rem;
+    }
+
+    .logo-img {
+      width: 190px;
+      height: 190px;
+      margin-bottom: -40px !important;
+      margin-top: -20px !important;
+    }
+
+    .link {
+      text-align: center;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container d-flex justify-content-center align-items-center vh-100">
+    <div class="col-md-6">
+      <div class="card login-card">
+        <div class="card-header login-header text-white text-center">
+          <h4>Student Enrollment System</h4>
+        </div>
+        <div class="card-body p-4">
+          <div class="text-center mb-3">
+            <img src="https://png.pngtree.com/template/20190316/ourmid/pngtree-books-logo-image_79143.jpg" alt="Books Logo" class="logo-img mb-2"/>
+          </div>
+
+          <div class="alert alert-danger d-none" id="loginError"></div>
+
+          <form id="loginForm">
+            <div class="mb-3">
+              <label for="email" class="form-label">Email</label>
+              <input type="email" class="form-control" id="email" required/>
+            </div>
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input type="password" class="form-control" id="password" required/>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2">Login</button>
+          </form>
+
+          <div class="link">
+            <a href="register.html">Don't have an account? Register</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+  const roleMap = {
+    1: 'student',
+    2: 'student_advisor',
+    3: 'professor'
+  };
+
+  const roleName = roleMap[result.roleId] || 'student';
+
+  localStorage.setItem('userRole', roleName);
+  localStorage.setItem('userId', result.userId);
+  localStorage.setItem('userName', result.name);
+  localStorage.setItem('userEmail', email);
+  window.location.href = '/dashboard.html';
+        } else {
+          const errorDiv = document.getElementById('loginError');
+          errorDiv.textContent = result.message || 'Invalid credentials';
+          errorDiv.classList.remove('d-none');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        const errorDiv = document.getElementById('loginError');
+        errorDiv.textContent = 'An error occurred. Please try again.';
+        errorDiv.classList.remove('d-none');
+      }
+    });
+  </script>
+</body>
+</html>
