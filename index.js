@@ -1,11 +1,13 @@
 // Load environment variables from .env
 require('dotenv').config();
 
+const { initResetRoutes } = require('./database-reset');
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const { faker } = require('@faker-js/faker');
 const app = express();
+initResetRoutes(app);
 const port = 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
