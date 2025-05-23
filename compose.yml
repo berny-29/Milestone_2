@@ -26,3 +26,26 @@ services:
 
 volumes:
   mariadb_data:
+
+
+
+
+
+#services:
+#  mariadb:
+#    image: mariadb:11.3
+#    container_name: university_db
+#    environment:
+#      MYSQL_ROOT_PASSWORD: rootpass
+#      MYSQL_DATABASE: university
+#      MYSQL_USER: admin
+#      MYSQL_PASSWORD: adminpass
+#    ports:
+#      - "3307:3306"  # Keep using 3307 since that's what you had
+#    volumes:
+#      - mariadb_data:/var/lib/mysql
+#    command: --default-authentication-plugin=mysql_native_password
+#    restart: unless-stopped
+#
+#volumes:
+#  mariadb_data:
