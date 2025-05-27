@@ -455,10 +455,6 @@ function loadStudentManagement() {
                     </button>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        Administrative staff can create and manage student accounts with temporary passwords.
-                    </div>
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
@@ -523,6 +519,10 @@ function createStudent() {
         return;
     }
 
+    const createButton = document.querySelector('#studentModal .btn-primary');
+    createButton.disabled = true;
+    createButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Creating Account...';
+
     fetch('/api/admin/create-student', {
         method: 'POST',
         headers: {
@@ -538,16 +538,31 @@ function createStudent() {
                 bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
 
                 const contentArea = document.getElementById('contentArea');
-                contentArea.innerHTML = `
+                const successAlert = `
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle"></i>
+                    <i class="bi bi-check-circle-fill"></i>
                     <strong>Success!</strong> Student account created successfully!
-                    <br><small>Temporary password: <code>${result.tempPassword}</code> has been sent to ${email}</small>
+                    <hr>
+                    <div class="mb-0">
+                        <strong>Student Details:</strong><br>
+                        <small>
+                            • Name: ${name}<br>
+                            • Email: ${email}<br>
+                            • Role: ${role_id === '1' ? 'Regular Student' : 'Student Advisor'}<br>
+                            • Temporary Password: <code>${result.tempPassword}</code><br>
+                            • Login credentials have been sent to the student's email
+                        </small>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
-            ` + contentArea.innerHTML;
+                <hr>
+            `;
 
-                loadStudentManagement();
+                contentArea.innerHTML = successAlert + contentArea.innerHTML;
+
+                setTimeout(() => {
+                    loadStudentManagement();
+                }, 5000);
             } else {
                 alert('Failed to create student account: ' + result.message);
             }
@@ -555,6 +570,10 @@ function createStudent() {
         .catch(error => {
             console.error('Error creating student:', error);
             alert('Failed to create student account: ' + error.message);
+        })
+        .finally(() => {
+            createButton.disabled = false;
+            createButton.innerHTML = '<i class="bi bi-person-plus"></i> Create Student Account';
         });
 }
 

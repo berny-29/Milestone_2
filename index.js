@@ -1,29 +1,16 @@
 require('dotenv').config();
 
-const { initResetRoutes } = require('./database-reset');
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const { faker } = require('@faker-js/faker');
-const app = express();
-initResetRoutes(app);
-const port = 3000;
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 const nodemailer = require('nodemailer');
 
-async function createTestTransporter() {
-    const testAccount = await nodemailer.createTestAccount();
+const app = express();
+const port = 3000;
 
-    return nodemailer.createTransporter({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        auth: {
-            user: testAccount.user,
-            pass: testAccount.pass
-        }
-    });
-}
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
@@ -37,42 +24,6 @@ const pool = mysql.createPool({
 });
 
 function generateTempPassword(length = 10) {
-    const mysql = require('mysql2/promise');
-    const path = require('path');
-    const { faker } = require('@faker-js/faker');
-    const app = express();
-    initResetRoutes(app);
-    const port = 3000;
-    app.use(express.json());
-    app.use(express.static(path.join(__dirname, 'public')));
-    const nodemailer = require('nodemailer');
-
-    async function createTestTransporter() {
-        const testAccount = await nodemailer.createTestAccount();
-
-        return nodemailer.createTransporter({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass
-            }
-        });
-    }
-
-    const pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        database: process.env.DB_NAME || 'university',
-        password: process.env.DB_PASSWORD || 'password',
-        port: process.env.DB_PORT || 3306,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
-
-    const { initResetRoutes } = require('./database-reset');
-    const express = require('express');
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*';
     let password = '';
     for (let i = 0; i < length; i++) {
@@ -81,20 +32,8 @@ function generateTempPassword(length = 10) {
     return password;
 }
 
-function isAdminStaff(req, res, next) {
-    const userRole = req.headers['user-role'];
-    const userId = req.headers['user-id'];
-
-    if (!userRole || !userId) {
-        return res.status(401).json({ success: false, message: 'Authentication required' });
-    }
-
-    if (userRole !== 'administrative_staff') {
-        return res.status(403).json({ success: false, message: 'Administrative staff access required' });
-    }
-
-    next();
-}
+const { initResetRoutes } = require('./database-reset');
+initResetRoutes(app);
 
 app.get('/', (req, res) => {
     res.redirect('/login.html');
@@ -656,158 +595,6 @@ app.get('/api/admin/students', async (req, res) => {
     } catch (err) {
         console.error('Error fetching students:', err);
         res.status(500).json({ error: 'Database error' });
-    }
-});
-
-app.post('/api/generate-data', async (req, res) => {
-    const connection = await pool.getConnection();
-
-    try {
-        await connection.beginTransaction();
-
-        await connection.query('DELETE FROM ENROLLMENT');
-        await connection.query('DELETE FROM STUDENT_ACCOUNT');
-        await connection.query('DELETE FROM STUDENT_DEPARTMENT');
-        await connection.query('DELETE FROM PROFESSOR_DEPARTMENT');
-        await connection.query('DELETE FROM teaches');
-        await connection.query('DELETE FROM COURSE');
-        await connection.query('DELETE FROM STUDENT');
-        await connection.query('DELETE FROM PROFESSOR');
-        await connection.query('DELETE FROM DEPARTMENT');
-        await connection.query('DELETE FROM ROLE');
-
-        await connection.query(`
-            INSERT INTO ROLE (role_id, role_name)
-            VALUES 
-                (1, 'student'),
-                (2, 'student_advisor'),
-                (3, 'professor'),
-                (4, 'administrative_staff')
-        `);
-
-        const departments = ['Computer Science', 'Mathematics', 'Physics', 'Business', 'Arts'];
-        const locations = ['Building A', 'Building B', 'Building C', 'Building D', 'Building E'];
-
-        for (let i = 0; i < departments.length; i++) {
-            await connection.query(
-                'INSERT INTO DEPARTMENT (department_id, name, location) VALUES (?, ?, ?)',
-                [i + 1, departments[i], locations[i]]
-            );
-        }
-
-        const [deptRows] = await connection.query('SELECT department_id FROM DEPARTMENT');
-        const departmentIds = deptRows.map(row => row.department_id);
-
-        for (let i = 0; i < 10; i++) {
-            const deptId = departmentIds[Math.floor(Math.random() * departmentIds.length)];
-            const name = faker.person.fullName();
-            const email = faker.internet.email();
-
-            const [profResult] = await connection.query(
-                'INSERT INTO PROFESSOR (professor_id, name, email) VALUES (?, ?, ?)',
-                [i + 1, name, email]
-            );
-
-            await connection.query(
-                'INSERT INTO PROFESSOR_DEPARTMENT (professor_id, department_id) VALUES (?, ?)',
-                [i + 1, deptId]
-            );
-        }
-
-        const professorIds = Array.from({ length: 10 }, (_, i) => i + 1);
-
-        const testName = 'Test Student';
-        const testEmail = 'test@student.com';
-        const testDob = '2000-01-01';
-        const testPassword = 'password123';
-        const testRoleId = 1;
-        const testStudentId = 1;
-        const testDeptId = departmentIds[0];
-
-        await connection.query(
-            'INSERT INTO STUDENT (student_id, name, email, dob, advisor_id, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [testStudentId, testName, testEmail, testDob, null, testRoleId]
-        );
-
-        await connection.query(
-            'INSERT INTO STUDENT_ACCOUNT (account_id, student_id, password, account_type) VALUES (?, ?, ?, ?)',
-            [1, testStudentId, testPassword, 'regular']
-        );
-
-        await connection.query(
-            'INSERT INTO STUDENT_DEPARTMENT (student_id, department_id) VALUES (?, ?)',
-            [testStudentId, testDeptId]
-        );
-
-        for (let i = 1; i < 50; i++) {
-            const name = faker.person.fullName();
-            const email = faker.internet.email();
-            const dob = faker.date.past({ years: 20, refDate: new Date(2002, 0, 1) }).toISOString().split('T')[0];
-            const roleId = 1;
-
-            await connection.query(
-                'INSERT INTO STUDENT (student_id, name, email, dob, advisor_id, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-                [i + 1, name, email, dob, null, roleId]
-            );
-
-            await connection.query(
-                'INSERT INTO STUDENT_ACCOUNT (account_id, student_id, password, account_type) VALUES (?, ?, ?, ?)',
-                [i + 1, i + 1, 'password123', 'regular']
-            );
-
-            const deptId = departmentIds[Math.floor(Math.random() * departmentIds.length)];
-            await connection.query(
-                'INSERT INTO STUDENT_DEPARTMENT (student_id, department_id) VALUES (?, ?)',
-                [i + 1, deptId]
-            );
-        }
-
-        const studentIds = Array.from({ length: 50 }, (_, i) => i + 1);
-
-        for (let i = 0; i < 20; i++) {
-            const courseId = i + 1;
-            const courseName = faker.word.words(3) + ' ' + faker.number.int(400);
-            const credits = Math.floor(Math.random() * 5) + 2;
-            const seatsAvailable = 20 + Math.floor(Math.random() * 30);
-            const profId = professorIds[Math.floor(Math.random() * professorIds.length)];
-
-            const [profDept] = await connection.query('SELECT department_id FROM PROFESSOR_DEPARTMENT WHERE professor_id = ? LIMIT 1', [profId]);
-            const deptId = profDept[0].department_id;
-
-            await connection.query(
-                'INSERT INTO COURSE (course_id, course_name, credits, seats_available, professor_id) VALUES (?, ?, ?, ?, ?)',
-                [courseId, courseName, credits, seatsAvailable, profId]
-            );
-        }
-
-        const courseIds = Array.from({ length: 20 }, (_, i) => i + 1);
-
-        for (let i = 0; i < 100; i++) {
-            const enrollmentId = i + 1;
-            const studentId = studentIds[Math.floor(Math.random() * studentIds.length)];
-            const courseId = courseIds[Math.floor(Math.random() * courseIds.length)];
-
-            const [exists] = await connection.query('SELECT COUNT(*) as count FROM ENROLLMENT WHERE student_id = ? AND course_id = ?', [studentId, courseId]);
-            if (exists[0].count > 0) continue;
-
-            const enrollmentDate = faker.date.past({ years: 1 }).toISOString().split('T')[0];
-            const grade = Math.random() < 0.7 ? ['A', 'B', 'C', 'D', 'F'][Math.floor(Math.random() * 5)] : null;
-
-            await connection.query(
-                'INSERT INTO ENROLLMENT (enrollment_id, student_id, course_id, grade) VALUES (?, ?, ?, ?)',
-                [enrollmentId, studentId, courseId, grade]
-            );
-        }
-
-        await connection.commit();
-
-        res.json({ success: true, message: 'Random data generated successfully' });
-    } catch (err) {
-        await connection.rollback();
-        console.error('Error generating random data:', err);
-        res.status(500).json({ success: false, error: err.message });
-    } finally {
-        connection.release();
     }
 });
 
