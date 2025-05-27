@@ -213,9 +213,9 @@ async function generateFakeData(connection) {
     console.log(`   - ${successfulEnrollments} Enrollments`);
 
     console.log('\nTest Login Credentials:');
-    console.log('   Student: test@student.com / [generated password]');
+    console.log('   Student: test@student.com / password123');
     console.log('   Admin: admin@university.com / admin123');
-    console.log('   Professor: Any generated professor email / [generated password]');
+    console.log('   Professor: Any generated professor email / check db for password');
 }
 
 function initResetRoutes(app) {
