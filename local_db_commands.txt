@@ -8,8 +8,8 @@ npm start
 
 
 TO START DB AND QUERY IT IN TERMINAL:
-docker exec -it university_db mariadb -u admin -p
-then type in: adminpass
+mariadb -u root -p
+then type in password
 
 TO QUERY DB:
 USE university;

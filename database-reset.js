@@ -12,6 +12,15 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
+function generateTempPassword(length = 10) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+}
+
 async function generateFakeData(connection) {
     const departments = ['Computer Science', 'Mathematics', 'Physics', 'Business', 'Arts', 'Engineering', 'Biology', 'Chemistry'];
     const locations = ['Building A', 'Building B', 'Building C', 'Building D', 'Building E', 'Science Wing', 'Tech Center', 'Main Campus'];
@@ -38,7 +47,7 @@ async function generateFakeData(connection) {
 
         await connection.query(
             'INSERT INTO PROFESSOR_ACCOUNT (professor_id, password, account_type) VALUES (?, ?, ?)',
-            [i + 1, 'password123', 'regular']
+            [i + 1, generateTempPassword(), 'regular']
         );
 
         await connection.query(
@@ -58,7 +67,7 @@ async function generateFakeData(connection) {
 
     await connection.query(
         'INSERT INTO STUDENT (student_id, name, email, dob, advisor_id, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [testStudentId, testName, testEmail, testDob, professorIds[0], testRoleId]
+        [testStudentId, testName, testEmail, testDob, null, testRoleId]
     );
 
     await connection.query(
@@ -81,12 +90,12 @@ async function generateFakeData(connection) {
 
         await connection.query(
             'INSERT INTO STUDENT (student_id, name, email, dob, advisor_id, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-            [i + 1, name, email, dob, advisorId, roleId]
+            [i + 1, name, email, dob, null, roleId]
         );
 
         await connection.query(
             'INSERT INTO STUDENT_ACCOUNT (student_id, password, account_type) VALUES (?, ?, ?)',
-            [i + 1, 'password123', 'regular']
+            [i + 1, generateTempPassword(), 'regular']
         );
 
         const deptId = departmentIds[Math.floor(Math.random() * departmentIds.length)];
@@ -94,13 +103,28 @@ async function generateFakeData(connection) {
             'INSERT INTO STUDENT_DEPARTMENT (student_id, department_id) VALUES (?, ?)',
             [i + 1, deptId]
         );
-
-        await connection.query(
-            'INSERT INTO advises (professor_id, student_id) VALUES (?, ?)',
-            [advisorId, i + 1]
-        );
     }
     const studentIds = Array.from({ length: studentCount }, (_, i) => i + 1);
+
+    const studentAdvisorIds = [];
+    for (let i = 1; i <= studentCount; i++) {
+        const [roleCheck] = await connection.query('SELECT role_id FROM STUDENT WHERE student_id = ?', [i]);
+        if (roleCheck[0] && roleCheck[0].role_id === 2) {
+            studentAdvisorIds.push(i);
+        }
+    }
+
+    if (studentAdvisorIds.length === 0) {
+        await connection.query('UPDATE STUDENT SET role_id = 2 WHERE student_id = 2');
+        studentAdvisorIds.push(2);
+    }
+
+    for (let i = 1; i <= studentCount; i++) {
+        if (studentAdvisorIds.includes(i)) continue;
+
+        const advisorId = studentAdvisorIds[Math.floor(Math.random() * studentAdvisorIds.length)];
+        await connection.query('UPDATE STUDENT SET advisor_id = ? WHERE student_id = ?', [advisorId, i]);
+    }
 
     const courseSubjects = [
         'Introduction to Programming', 'Data Structures', 'Algorithms', 'Database Systems', 'Web Development',
@@ -115,7 +139,7 @@ async function generateFakeData(connection) {
     for (let i = 0; i < courseCount; i++) {
         const courseId = i + 1;
         const courseName = courseSubjects[i % courseSubjects.length] + (i >= courseSubjects.length ? ` ${Math.floor(i / courseSubjects.length) + 2}` : '');
-        const credits = Math.floor(Math.random() * 4) + 1;
+        const credits = Math.floor(Math.random() * 5) + 2;
         const seatsAvailable = 15 + Math.floor(Math.random() * 35);
         const profId = professorIds[Math.floor(Math.random() * professorIds.length)];
 
@@ -167,16 +191,31 @@ async function generateFakeData(connection) {
         successfulEnrollments++;
     }
 
-    console.log('\nFake data generation completed successfully!');
+    await connection.query(
+        'INSERT INTO PROFESSOR (name, email) VALUES (?, ?)',
+        ['Test Admin', 'admin@university.com']
+    );
+
+    const [adminResult] = await connection.query('SELECT LAST_INSERT_ID() as id');
+    const adminProfessorId = adminResult[0].id;
+
+    await connection.query(
+        'INSERT INTO PROFESSOR_ACCOUNT (professor_id, password, account_type) VALUES (?, ?, ?)',
+        [adminProfessorId, 'admin123', 'admin']
+    );
+
+    console.log('\nDatabase reset and dummy data generation completed successfully!');
     console.log('Summary of generated data:');
     console.log(`   - ${departments.length} Departments`);
     console.log(`   - ${professorCount} Professors with accounts`);
     console.log(`   - ${studentCount} Students with accounts`);
     console.log(`   - ${courseCount} Courses`);
     console.log(`   - ${successfulEnrollments} Enrollments`);
+
     console.log('\nTest Login Credentials:');
-    console.log('   Student: test@student.com / password123');
-    console.log('   Professor: Any generated professor email / password123');
+    console.log('   Student: test@student.com / [generated password]');
+    console.log('   Admin: admin@university.com / admin123');
+    console.log('   Professor: Any generated professor email / [generated password]');
 }
 
 function initResetRoutes(app) {
@@ -185,8 +224,6 @@ function initResetRoutes(app) {
 
         try {
             await connection.beginTransaction();
-            console.log('\n\n🔄 Starting complete database reset and data generation...');
-
             await connection.query('SET FOREIGN_KEY_CHECKS = 0');
 
             const tables = [
@@ -200,7 +237,6 @@ function initResetRoutes(app) {
             }
 
             await connection.query('SET FOREIGN_KEY_CHECKS = 1');
-            console.log('   - All existing tables dropped');
 
             const createTablesSQL = [
                 `CREATE TABLE ROLE (
@@ -246,7 +282,6 @@ function initResetRoutes(app) {
                     dob DATE,
                     advisor_id INT,
                     role_id INT,
-                    FOREIGN KEY (advisor_id) REFERENCES PROFESSOR(professor_id),
                     FOREIGN KEY (role_id) REFERENCES ROLE(role_id)
                 )`,
                 `CREATE TABLE STUDENT_ACCOUNT (
@@ -290,24 +325,29 @@ function initResetRoutes(app) {
             for (const stmt of createTablesSQL) {
                 await connection.query(stmt);
             }
-            console.log('   - Database schema created');
 
             await connection.query(`
                 INSERT INTO ROLE (role_id, role_name)
                 VALUES
                     (1, 'student'),
                     (2, 'student_advisor'),
-                    (3, 'professor')
+                    (3, 'professor'),
+                    (4, 'administrative_staff')
             `);
-            console.log('   - Role data inserted');
 
             await generateFakeData(connection);
+
+            await connection.query(`
+                ALTER TABLE STUDENT 
+                ADD CONSTRAINT fk_student_advisor 
+                FOREIGN KEY (advisor_id) REFERENCES STUDENT(student_id)
+            `);
 
             await connection.commit();
 
             res.json({
                 success: true,
-                message: 'Database reset and fake data generation completed successfully!'
+                message: 'Database reset and dummy data generation completed successfully!'
             });
 
         } catch (error) {

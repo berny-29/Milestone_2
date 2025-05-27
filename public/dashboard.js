@@ -2,48 +2,55 @@ document.addEventListener('DOMContentLoaded', function() {
     const userRole = localStorage.getItem('userRole');
     const userId = localStorage.getItem('userId');
     const userName = localStorage.getItem('userName');
-    
+
     if (!userRole || !userId) {
-        // Not logged in, redirect to login page
         window.location.href = '/login.html';
         return;
     }
-    
-    // Set user name in navbar
+
     document.getElementById('userName').textContent = userName;
-    console.log(userName, 'imeeeeeee')
-    // Show/hide elements based on role
-    if (userRole === 'student') {
+
+    const roleDisplayMap = {
+        'student': 'Student',
+        'student_advisor': 'Student Advisor',
+        'professor': 'Professor',
+        'administrative_staff': 'Administrative Staff'
+    };
+    document.getElementById('userRole').textContent = roleDisplayMap[userRole] || userRole;
+
+    if (userRole === 'student' || userRole === 'student_advisor') {
         document.querySelectorAll('.professor-only').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.student-only').forEach(el => el.style.display = 'block');
     } else if (userRole === 'professor') {
         document.querySelectorAll('.student-only').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.professor-only').forEach(el => el.style.display = 'block');
+    } else if (userRole === 'administrative_staff') {
+        document.querySelectorAll('.student-only').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.professor-only').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block');
     }
-    
-    // Load initial content (Available Courses by default)
+
     loadAvailableCourses();
-    
-    // Set up event listeners
+
     document.getElementById('logoutBtn').addEventListener('click', logout);
     document.getElementById('allCourses').addEventListener('click', loadAvailableCourses);
     document.getElementById('analyticsReport')?.addEventListener('click', loadAnalyticsReport);
-    
-    if (userRole === 'student') {
+
+    if (userRole === 'student' || userRole === 'student_advisor') {
         document.getElementById('myCourses').addEventListener('click', loadEnrolledCourses);
         document.getElementById('myAdvisors').addEventListener('click', loadAdvisors);
-        document.getElementById('confirmEnrollBtn').addEventListener('click', enrollInCourse);
     } else if (userRole === 'professor') {
         document.getElementById('departmentManagement').addEventListener('click', loadDepartmentInfo);
         document.getElementById('enrolledStudents').addEventListener('click', loadEnrolledStudentsForProfessor);
-        //document.getElementById('myAdvisees').addEventListener('click', loadAdvisees);
-        //document.getElementById('generateDataBtn').addEventListener('click', generateRandomData);
-        document.getElementById('saveCourseBtn').addEventListener('click', saveCourse);
+    } else if (userRole === 'administrative_staff') {
+        document.getElementById('studentManagement').addEventListener('click', loadStudentManagement);
+        document.getElementById('createStudent').addEventListener('click', showCreateStudentModal);
     }
 });
 
 function logout() {
-    // Clear local storage and redirect to login
     localStorage.removeItem('userRole');
     localStorage.removeItem('userId');
     localStorage.removeItem('userName');
@@ -51,94 +58,95 @@ function logout() {
     window.location.href = '/login.html';
 }
 
-// Available Courses (for both students and professors)
 async function loadAvailableCourses() {
-  setActiveNavItem('allCourses');
-  const contentArea = document.getElementById('contentArea');
-  contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
+    setActiveNavItem('allCourses');
+    const contentArea = document.getElementById('contentArea');
+    contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
 
-  const role = localStorage.getItem('userRole');
-  const userId = localStorage.getItem('userId');
-  
-  try {
-    let courses;
-    
-    if (role === 'professor') {
-      const response = await fetch(`/api/courses?professor_id=${userId}`);
-      courses = await response.json();
-    } else {
-      const response = await fetch(`/api/courses?student_id=${userId}`);
-      courses = await response.json();
-    }
+    const role = localStorage.getItem('userRole');
+    const userId = localStorage.getItem('userId');
 
-    let html = `
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Available Courses</h5>
-          ${role === 'professor' ? 
-            '<button class="btn btn-sm btn-primary" onclick="openCourseModal()"><i class="bi bi-plus-circle"></i> Add Course</button>' 
-            : ''}
-        </div>
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Course ID</th>
-                  <th>Course Name</th>
-                  <th>Credits</th>
-                  <th>Seats Available</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>`;
+    try {
+        let courses;
 
-    if (!Array.isArray(courses) || courses.length === 0) {
-      html += `<tr><td colspan="6" class="text-center">No courses available</td></tr>`;
-    } else {
-      courses.forEach(course => {
-        html += `
-          <tr>
-            <td>${course.course_id}</td>
-            <td>${course.course_name}</td>
-            <td>${course.credits}</td>
-            <td>${course.seats_available}</td>
-            <td>`;
-
-        if (role === 'student' && !course.is_enrolled) {
-          html += `<button class="btn btn-sm btn-success" onclick="enrollDirectly(${course.course_id})">
-                      <i class="bi bi-plus-circle"></i> Enroll
-                    </button>`;
-        } else if (role === 'professor') {
-          html += `<button class="btn btn-sm btn-primary me-1" onclick="editCourse(${course.course_id})">
-                      <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteCourse(${course.course_id})">
-                      <i class="bi bi-trash"></i>
-                    </button>`;
+        if (role === 'professor') {
+            const response = await fetch(`/api/courses?professor_id=${userId}`);
+            courses = await response.json();
+        } else if (role === 'student' || role === 'student_advisor') {
+            const response = await fetch(`/api/courses?student_id=${userId}`);
+            courses = await response.json();
+        } else {
+            const response = await fetch('/api/courses');
+            courses = await response.json();
         }
 
-        html += `</td></tr>`;
-      });
+        let html = `
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Available Courses</h5>
+                    ${role === 'professor' ?
+            '<button class="btn btn-sm btn-primary" onclick="openCourseModal()"><i class="bi bi-plus-circle"></i> Add Course</button>'
+            : ''}
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Course ID</th>
+                                    <th>Course Name</th>
+                                    <th>Credits</th>
+                                    <th>Seats Available</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+        if (!Array.isArray(courses) || courses.length === 0) {
+            html += `<tr><td colspan="6" class="text-center">No courses available</td></tr>`;
+        } else {
+            courses.forEach(course => {
+                html += `
+                    <tr>
+                        <td>${course.course_id}</td>
+                        <td>${course.course_name}</td>
+                        <td>${course.credits}</td>
+                        <td>${course.seats_available}</td>
+                        <td>`;
+
+                if ((role === 'student' || role === 'student_advisor') && !course.is_enrolled) {
+                    html += `<button class="btn btn-sm btn-success" onclick="enrollDirectly(${course.course_id})">
+                                <i class="bi bi-plus-circle"></i> Enroll
+                              </button>`;
+                } else if (role === 'professor') {
+                    html += `<button class="btn btn-sm btn-primary me-1" onclick="editCourse(${course.course_id})">
+                                <i class="bi bi-pencil"></i>
+                              </button>
+                              <button class="btn btn-sm btn-danger" onclick="deleteCourse(${course.course_id})">
+                                <i class="bi bi-trash"></i>
+                              </button>`;
+                }
+
+                html += `</td></tr>`;
+            });
+        }
+
+        html += `</tbody></table></div></div></div>`;
+        contentArea.innerHTML = html;
+
+    } catch (error) {
+        console.error('Error loading courses:', error);
+        contentArea.innerHTML = `<div class="alert alert-danger">Error loading courses: ${error.message}</div>`;
     }
-
-    html += `</tbody></table></div></div></div>`;
-    contentArea.innerHTML = html;
-
-  } catch (error) {
-    console.error('Error loading courses:', error);
-    contentArea.innerHTML = `<div class="alert alert-danger">Error loading courses: ${error.message}</div>`;
-  }
 }
 
-// Student-specific functions
 function loadEnrolledCourses() {
     setActiveNavItem('myCourses');
     const contentArea = document.getElementById('contentArea');
     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-    
+
     const studentId = localStorage.getItem('userId');
-    
+
     fetch(`/api/students/${studentId}/courses`)
         .then(response => response.json())
         .then(enrollments => {
@@ -162,7 +170,7 @@ function loadEnrolledCourses() {
                                     </tr>
                                 </thead>
                                 <tbody>`;
-            
+
             if (enrollments.length === 0) {
                 html += `<tr><td colspan="4" class="text-center">You are not enrolled in any courses</td></tr>`;
             } else {
@@ -195,7 +203,7 @@ function loadEnrolledCourses() {
                         <p class="mb-0 text-muted">Maximum Allowed Credits: <strong>${maxCredits}</strong></p>
                     </div>
                 </div>`;
-            
+
             contentArea.innerHTML = html;
         })
         .catch(error => {
@@ -208,47 +216,53 @@ function loadAdvisors() {
     setActiveNavItem('myAdvisors');
     const contentArea = document.getElementById('contentArea');
     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-    
+
     const studentId = localStorage.getItem('userId');
-    
+
     fetch(`/api/students/${studentId}/advisors`)
         .then(response => response.json())
         .then(advisors => {
             let html = `
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">My Advisors</h5>
+                        <h5 class="mb-0">My Student Advisor</h5>
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Advisor Name</th>
-                                        <th>Email</th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
-            
+                    <div class="card-body">`;
+
+            if (!Array.isArray(advisors)) {
+                advisors = [advisors].filter(Boolean);
+            }
+
             if (advisors.length === 0) {
-                html += `<tr><td colspan="3" class="text-center">You don't have any advisors assigned</td></tr>`;
+                html += `<div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    You don't have a student advisor assigned yet. Please contact administrative staff.
+                </div>`;
             } else {
+                html += `<div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Advisor Name</th>
+                                <th>Email</th>
+                                <th>Department</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
                 advisors.forEach(advisor => {
                     html += `
                         <tr>
                             <td>${advisor.name}</td>
                             <td>${advisor.email}</td>
+                            <td>${advisor.department_name || 'Not assigned'}</td>
                         </tr>`;
                 });
+
+                html += `</tbody></table></div>`;
             }
-            
-            html += `
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>`;
-            
+
+            html += `</div></div>`;
             contentArea.innerHTML = html;
         })
         .catch(error => {
@@ -257,55 +271,54 @@ function loadAdvisors() {
         });
 }
 
-function openEnrollmentModal(courseId, courseName) {
-    const modal = new bootstrap.Modal(document.getElementById('enrollmentModal'));
-    document.getElementById('enrollCourseId').value = courseId;
-    document.getElementById('enrollCourseTitle').textContent = courseName;
-    modal.show();
-}
-
-function enrollInCourse() {
-    const courseId = document.getElementById('enrollCourseId').value;
+function enrollDirectly(courseId) {
     const studentId = localStorage.getItem('userId');
-    
-    fetch('/api/enrollments', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            student_id: studentId,
-            course_id: courseId,
-            enrollment_date: new Date().toISOString().split('T')[0]
+    const MAX_CREDITS = 20;
+
+    fetch(`/api/students/${studentId}/courses`)
+        .then(response => response.json())
+        .then(currentEnrollments => {
+            const currentCredits = currentEnrollments.reduce((sum, course) => sum + (course.credits || 0), 0);
+
+            fetch(`/api/courses/${courseId}`)
+                .then(response => response.json())
+                .then(course => {
+                    const newTotal = currentCredits + course.credits;
+
+                    if (newTotal > MAX_CREDITS) {
+                        alert(`You cannot enroll in this course.\nIt would exceed the max allowed credits (${MAX_CREDITS}).\nCurrent: ${currentCredits} + ${course.credits} = ${newTotal}`);
+                        return;
+                    }
+
+                    if (confirm(`Do you want to enroll in "${course.course_name}"?`)) {
+                        fetch('/api/enrollments', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                student_id: studentId,
+                                course_id: courseId
+                            })
+                        })
+                            .then(response => response.json())
+                            .then(result => {
+                                if (result.success) {
+                                    alert('Successfully enrolled in course!');
+                                    loadAvailableCourses();
+                                } else {
+                                    alert('Enrollment failed: ' + result.message);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Enrollment error:', error);
+                                alert('Enrollment failed: ' + error.message);
+                            });
+                    }
+                });
         })
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            // Hide modal and reload available courses
-            bootstrap.Modal.getInstance(document.getElementById('enrollmentModal')).hide();
-            
-            // Show success message
-            const contentArea = document.getElementById('contentArea');
-            contentArea.innerHTML = `
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    Successfully enrolled in the course!
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            ` + contentArea.innerHTML;
-            
-            // Reload courses after a short delay
-            setTimeout(() => {
-                loadAvailableCourses();
-            }, 1000);
-        } else {
-            alert('Enrollment failed: ' + result.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error during enrollment:', error);
-        alert('Enrollment failed: ' + error.message);
-    });
+        .catch(error => {
+            console.error('Error checking credit limit:', error);
+            alert('An error occurred while checking your credits.');
+        });
 }
 
 function dropCourse(enrollmentId) {
@@ -313,179 +326,28 @@ function dropCourse(enrollmentId) {
         fetch(`/api/enrollments/${enrollmentId}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                loadEnrolledCourses();
-            } else {
-                alert('Failed to drop course: ' + result.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error dropping course:', error);
-            alert('Failed to drop course: ' + error.message);
-        });
-    }
-}
-
-// function enrollDirectly(courseId) {
-//   const studentId = localStorage.getItem('userId');
-
-//   if (confirm('Are you sure you want to enroll in this course?')) {
-//     fetch('/api/enrollments', {
-//       method: 'POST',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({
-//         student_id: studentId,
-//         course_id: courseId
-//       })
-//     })
-//     .then(response => response.json())
-//     .then(result => {
-//       if (result.success) {
-//         alert('Successfully enrolled in course!');
-//         loadAvailableCourses(); // refresh list
-//       } else {
-//         alert('Enrollment failed: ' + result.message);
-//       }
-//     })
-//     .catch(error => {
-//       console.error('Enrollment error:', error);
-//       alert('Enrollment failed: ' + error.message);
-//     });
-//   }
-// }
-function enrollDirectly(courseId) {
-  const studentId = localStorage.getItem('userId');
-  const MAX_CREDITS = 20;
-
-  // First: Fetch the student's current courses to calculate total credits
-  fetch(`/api/students/${studentId}/courses`)
-    .then(response => response.json())
-    .then(currentEnrollments => {
-      const currentCredits = currentEnrollments.reduce((sum, course) => sum + (course.credits || 0), 0);
-
-      // Second: Fetch the course the student wants to enroll in
-      fetch(`/api/courses/${courseId}`)
-        .then(response => response.json())
-        .then(course => {
-          const newTotal = currentCredits + course.credits;
-
-          if (newTotal > MAX_CREDITS) {
-            alert(`You cannot enroll in this course.\nIt would exceed the max allowed credits (${MAX_CREDITS}).\nCurrent: ${currentCredits} + ${course.credits} = ${newTotal}`);
-            return;
-          }
-
-          if (confirm(`Do you want to enroll in "${course.course_name}"?`)) {
-            fetch('/api/enrollments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                student_id: studentId,
-                course_id: courseId
-              })
-            })
             .then(response => response.json())
             .then(result => {
-              if (result.success) {
-                alert('Successfully enrolled in course!');
-                loadAvailableCourses();
-              } else {
-                alert('Enrollment failed: ' + result.message);
-              }
+                if (result.success) {
+                    loadEnrolledCourses();
+                } else {
+                    alert('Failed to drop course: ' + result.message);
+                }
             })
             .catch(error => {
-              console.error('Enrollment error:', error);
-              alert('Enrollment failed: ' + error.message);
+                console.error('Error dropping course:', error);
+                alert('Failed to drop course: ' + error.message);
             });
-          }
-        });
-    })
-    .catch(error => {
-      console.error('Error checking credit limit:', error);
-      alert('An error occurred while checking your credits.');
-    });
+    }
 }
-// Professor-specific functions
-// function loadTeachingCourses() {
-//     setActiveNavItem('myTeachingCourses');
-//     const contentArea = document.getElementById('contentArea');
-//     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-    
-//     const professorId = localStorage.getItem('userId');
-    
-//     fetch(`/api/professors/${professorId}/courses`)
-//         .then(response => response.json())
-//         .then(courses => {
-//             let html = `
-//                 <div class="card">
-//                     <div class="card-header d-flex justify-content-between align-items-center">
-//                         <h5 class="mb-0">My Teaching Courses</h5>
-//                         <button class="btn btn-sm btn-primary" onclick="openCourseModal()">
-//                             <i class="bi bi-plus-circle"></i> Add Course
-//                         </button>
-//                     </div>
-//                     <div class="card-body">
-//                         <div class="table-responsive">
-//                             <table class="table table-hover">
-//                                 <thead>
-//                                     <tr>
-//                                         <th>Course Name</th>
-//                                         <th>Credits</th>
-//                                         <th>Seats Available</th>
-//                                         <th>Enrolled Students</th>
-//                                         <th>Actions</th>
-//                                     </tr>
-//                                 </thead>
-//                                 <tbody>`;
-            
-//             if (courses.length === 0) {
-//                 html += `<tr><td colspan="5" class="text-center">You are not teaching any courses</td></tr>`;
-//             } else {
-//                 courses.forEach(course => {
-//                     html += `
-//                         <tr>
-//                             <td>${course.course_name}</td>
-//                             <td>${course.credits}</td>
-//                             <td>${course.seats_available}</td>
-//                             <td>${course.enrolled_count || 0}</td>
-//                             <td>
-//                                 <button class="btn btn-sm btn-info me-1" onclick="viewEnrollments(${course.course_id})">
-//                                     <i class="bi bi-people"></i> Students
-//                                 </button>
-//                                 <button class="btn btn-sm btn-primary me-1" onclick="editCourse(${course.course_id})">
-//                                     <i class="bi bi-pencil"></i>
-//                                 </button>
-//                                 <button class="btn btn-sm btn-danger" onclick="deleteCourse(${course.course_id})">
-//                                     <i class="bi bi-trash"></i>
-//                                 </button>
-//                             </td>
-//                         </tr>`;
-//                 });
-//             }
-            
-//             html += `
-//                                 </tbody>
-//                             </table>
-//                         </div>
-//                     </div>
-//                 </div>`;
-            
-//             contentArea.innerHTML = html;
-//         })
-//         .catch(error => {
-//             console.error('Error loading teaching courses:', error);
-//             contentArea.innerHTML = `<div class="alert alert-danger">Error loading teaching courses: ${error.message}</div>`;
-//         });
-// }
 
 function loadDepartmentInfo() {
     setActiveNavItem('departmentManagement');
     const contentArea = document.getElementById('contentArea');
     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-    
+
     const professorId = localStorage.getItem('userId');
-    
+
     fetch(`/api/professors/${professorId}/department`)
         .then(response => response.json())
         .then(department => {
@@ -507,49 +369,7 @@ function loadDepartmentInfo() {
                         </div>
                     </div>
                 </div>`;
-            
-            // Add department courses section if there's a department
-            // if (department.department_id) {
-            //     html += `
-            //         <div class="card">
-            //             <div class="card-header">
-            //                 <h5 class="mb-0">Department Courses</h5>
-            //             </div>
-            //             <div class="card-body">
-            //                 <div class="table-responsive">
-            //                     <table class="table table-hover">
-            //                         <thead>
-            //                             <tr>
-            //                                 <th>Course Name</th>
-            //                                 <th>Credits</th>
-            //                                 <th>Professor</th>
-            //                                 <th>Enrolled Students</th>
-            //                             </tr>
-            //                         </thead>
-            //                         <tbody>`;
-                
-            //     if (!department.courses || department.courses.length === 0) {
-            //         html += `<tr><td colspan="4" class="text-center">No courses in this department</td></tr>`;
-            //     } else {
-            //         department.courses.forEach(course => {
-            //             html += `
-            //                 <tr>
-            //                     <td>${course.course_name}</td>
-            //                     <td>${course.credits}</td>
-            //                     <td>${course.professor_name || 'Not assigned'}</td>
-            //                     <td>${course.enrolled_count || 0}</td>
-            //                 </tr>`;
-            //         });
-            //     }
-                
-            //     html += `
-            //                         </tbody>
-            //                     </table>
-            //                 </div>
-            //             </div>
-            //         </div>`;
-            // }
-            
+
             contentArea.innerHTML = html;
         })
         .catch(error => {
@@ -613,220 +433,178 @@ function loadEnrolledStudentsForProfessor() {
         });
 }
 
-function loadAdvisees() {
-    setActiveNavItem('myAdvisees');
+function loadStudentManagement() {
+    setActiveNavItem('studentManagement');
     const contentArea = document.getElementById('contentArea');
     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-    
-    const professorId = localStorage.getItem('userId');
-    
-    fetch(`/api/professors/${professorId}/advisees`)
+
+    fetch('/api/admin/students', {
+        headers: {
+            'user-role': localStorage.getItem('userRole'),
+            'user-id': localStorage.getItem('userId')
+        }
+    })
         .then(response => response.json())
-        .then(advisees => {
+        .then(students => {
             let html = `
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">My Advisees</h5>
-                        <button class="btn btn-sm btn-primary" onclick="showAddAdviseeModal()">
-                            <i class="bi bi-person-plus"></i> Add Advisee
-                        </button>
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Student Management</h5>
+                    <button class="btn btn-sm btn-primary" onclick="showCreateStudentModal()">
+                        <i class="bi bi-person-plus"></i> Create New Student
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        Administrative staff can create and manage student accounts with temporary passwords.
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Student Name</th>
-                                        <th>Email</th>
-                                        <th>Date of Birth</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
-            
-            if (advisees.length === 0) {
-                html += `<tr><td colspan="4" class="text-center">You don't have any advisees</td></tr>`;
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Student ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Date of Birth</th>
+                                    <th>Role</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+            if (students.length === 0) {
+                html += `<tr><td colspan="5" class="text-center">No students found</td></tr>`;
             } else {
-                advisees.forEach(advisee => {
+                students.forEach(student => {
                     html += `
-                        <tr>
-                            <td>${advisee.name}</td>
-                            <td>${advisee.email}</td>
-                            <td>${advisee.date_of_birth ? new Date(advisee.date_of_birth).toLocaleDateString() : 'N/A'}</td>
-                            <td>
-                                <button class="btn btn-sm btn-info me-1" onclick="viewStudentCourses(${advisee.student_id})">
-                                    <i class="bi bi-journal-text"></i> Courses
-                                </button>
-                                <button class="btn btn-sm btn-danger" onclick="removeAdvisee(${advisee.student_id})">
-                                    <i class="bi bi-person-dash"></i> Remove
-                                </button>
-                            </td>
-                        </tr>`;
+                    <tr>
+                        <td>${student.student_id}</td>
+                        <td>${student.name}</td>
+                        <td>${student.email}</td>
+                        <td>${new Date(student.dob).toLocaleDateString()}</td>
+                        <td>
+                            <span class="badge ${student.role_id === 1 ? 'bg-primary' : 'bg-success'}">
+                                ${student.role_name.replace('_', ' ').toUpperCase()}
+                            </span>
+                        </td>
+                    </tr>`;
                 });
             }
-            
+
             html += `
-                                </tbody>
-                            </table>
-                        </div>
+                            </tbody>
+                        </table>
                     </div>
-                </div>`;
-            
+                </div>
+            </div>`;
+
             contentArea.innerHTML = html;
         })
         .catch(error => {
-            console.error('Error loading advisees:', error);
-            contentArea.innerHTML = `<div class="alert alert-danger">Error loading advisees: ${error.message}</div>`;
+            console.error('Error loading students:', error);
+            contentArea.innerHTML = `<div class="alert alert-danger">Error loading students: ${error.message}</div>`;
+        });
+}
+
+function showCreateStudentModal() {
+    const modal = new bootstrap.Modal(document.getElementById('studentModal'));
+    document.getElementById('studentForm').reset();
+    modal.show();
+}
+
+function createStudent() {
+    const name = document.getElementById('studentName').value;
+    const email = document.getElementById('studentEmail').value;
+    const dob = document.getElementById('studentDob').value;
+    const role_id = document.querySelector('input[name="studentRole"]:checked').value;
+
+    if (!name || !email || !dob) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    fetch('/api/admin/create-student', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'user-role': localStorage.getItem('userRole'),
+            'user-id': localStorage.getItem('userId')
+        },
+        body: JSON.stringify({ name, email, dob, role_id })
+    })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('studentModal')).hide();
+
+                const contentArea = document.getElementById('contentArea');
+                contentArea.innerHTML = `
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle"></i>
+                    <strong>Success!</strong> Student account created successfully!
+                    <br><small>Temporary password: <code>${result.tempPassword}</code> has been sent to ${email}</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            ` + contentArea.innerHTML;
+
+                loadStudentManagement();
+            } else {
+                alert('Failed to create student account: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error creating student:', error);
+            alert('Failed to create student account: ' + error.message);
         });
 }
 
 function loadAnalyticsReport() {
-  setActiveNavItem('analyticsReport');
-  const contentArea = document.getElementById('contentArea');
-  contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-
-  fetch('/api/analytics/top-courses')
-    .then(response => response.json())
-    .then(data => {
-      let html = `
-        <div class="card">
-          <div class="card-header">
-            <h5 class="mb-0">Top 5 Courses by Enrollment</h5>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Course Name</th>
-                    <th>Professor</th>
-                    <th>Department</th>
-                    <th>Enrolled Students</th>
-                  </tr>
-                </thead>
-                <tbody>`;
-
-      if (data.length === 0) {
-        html += '<tr><td colspan="4" class="text-center">No data available</td></tr>';
-      } else {
-        data.forEach(row => {
-          html += `
-            <tr>
-              <td>${row.course_name}</td>
-              <td>${row.professor_name}</td>
-              <td>${row.department_name}</td>
-              <td>${row.enrollment_count}</td>
-            </tr>`;
-        });
-      }
-
-      html += `</tbody></table></div></div></div>`;
-      contentArea.innerHTML = html;
-    })
-    .catch(error => {
-      console.error('Error loading analytics report:', error);
-      contentArea.innerHTML = `<div class="alert alert-danger">Error loading report: ${error.message}</div>`;
-    });
-}
-
-function viewEnrollments(courseId) {
+    setActiveNavItem('analyticsReport');
     const contentArea = document.getElementById('contentArea');
     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
-    
-    fetch(`/api/courses/${courseId}/enrollments`)
+
+    fetch('/api/analytics/top-courses')
         .then(response => response.json())
-        .then(enrollments => {
+        .then(data => {
             let html = `
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Enrolled Students</h5>
-                        <button class="btn btn-sm btn-secondary" onclick="loadTeachingCourses()">
-                            <i class="bi bi-arrow-left"></i> Back to My Courses
-                        </button>
+                    <div class="card-header">
+                        <h5 class="mb-0">Top 5 Courses by Enrollment</h5>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>Student Name</th>
-                                        <th>Email</th>
-                                        <th>Enrollment Date</th>
-                                        <th>Grade</th>
-                                        <th>Actions</th>
+                                        <th>Course Name</th>
+                                        <th>Professor</th>
+                                        <th>Department</th>
+                                        <th>Enrolled Students</th>
                                     </tr>
                                 </thead>
                                 <tbody>`;
-            
-            if (enrollments.length === 0) {
-                html += `<tr><td colspan="5" class="text-center">No students enrolled in this course</td></tr>`;
+
+            if (data.length === 0) {
+                html += '<tr><td colspan="4" class="text-center">No data available</td></tr>';
             } else {
-                enrollments.forEach(enrollment => {
+                data.forEach(row => {
                     html += `
                         <tr>
-                            <td>${enrollment.student_name}</td>
-                            <td>${enrollment.email}</td>
-                            <td>${new Date(enrollment.enrollment_date).toLocaleDateString()}</td>
-                            <td>
-                                <input type="text" class="form-control form-control-sm grade-input" 
-                                    data-enrollment-id="${enrollment.enrollment_id}" 
-                                    value="${enrollment.grade || ''}" 
-                                    placeholder="Enter grade">
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-primary save-grade-btn" 
-                                    data-enrollment-id="${enrollment.enrollment_id}">
-                                    <i class="bi bi-save"></i> Save Grade
-                                </button>
-                            </td>
+                            <td>${row.course_name}</td>
+                            <td>${row.professor_name}</td>
+                            <td>${row.department_name}</td>
+                            <td>${row.enrollment_count}</td>
                         </tr>`;
                 });
             }
-            
-            html += `
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>`;
-            
+
+            html += `</tbody></table></div></div></div>`;
             contentArea.innerHTML = html;
-            
-            // Add event listeners to save grade buttons
-            document.querySelectorAll('.save-grade-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const enrollmentId = this.getAttribute('data-enrollment-id');
-                    const gradeInput = document.querySelector(`.grade-input[data-enrollment-id="${enrollmentId}"]`);
-                    saveGrade(enrollmentId, gradeInput.value);
-                });
-            });
         })
         .catch(error => {
-            console.error('Error loading enrollments:', error);
-            contentArea.innerHTML = `<div class="alert alert-danger">Error loading enrolled students: ${error.message}</div>`;
+            console.error('Error loading analytics report:', error);
+            contentArea.innerHTML = `<div class="alert alert-danger">Error loading report: ${error.message}</div>`;
         });
-}
-
-function saveGrade(enrollmentId, grade) {
-    fetch(`/api/enrollments/${enrollmentId}/grade`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ grade })
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            alert('Grade saved successfully!');
-        } else {
-            alert('Failed to save grade: ' + result.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error saving grade:', error);
-        alert('Failed to save grade: ' + error.message);
-    });
 }
 
 function openCourseModal(course = null) {
@@ -856,15 +634,15 @@ function saveCourse() {
         seats_available: document.getElementById('seatsAvailable').value,
         professor_id: localStorage.getItem('userId')
     };
-    
+
     let url = '/api/courses';
     let method = 'POST';
-    
+
     if (courseId) {
         url += `/${courseId}`;
         method = 'PUT';
     }
-    
+
     fetch(url, {
         method,
         headers: {
@@ -872,19 +650,19 @@ function saveCourse() {
         },
         body: JSON.stringify(courseData)
     })
-    .then(response => response.json())
-    .then(result => {
-         if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('courseModal')).hide();
-            loadAvailableCourses(); // You can also use loadTeachingCourses() if you want
-        } else {
-            alert('Failed to save course: ' + result.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error saving course:', error);
-        alert('Failed to save course: ' + error.message);
-    });
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById('courseModal')).hide();
+                loadAvailableCourses();
+            } else {
+                alert('Failed to save course: ' + result.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving course:', error);
+            alert('Failed to save course: ' + error.message);
+        });
 }
 
 function editCourse(courseId) {
@@ -904,69 +682,25 @@ function deleteCourse(courseId) {
         fetch(`/api/courses/${courseId}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                loadAvailableCourses(); // Just reload available courses
-            } else {
-                alert('Failed to delete course: ' + result.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error deleting course:', error);
-            alert('Failed to delete course: ' + error.message);
-        });
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    loadAvailableCourses();
+                } else {
+                    alert('Failed to delete course: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting course:', error);
+                alert('Failed to delete course: ' + error.message);
+            });
     }
 }
 
-function generateRandomData() {
-    const dataStatus = document.getElementById('dataStatus');
-    dataStatus.textContent = 'Generating random data...';
-    dataStatus.className = 'ms-2 text-warning';
-    
-    fetch('/api/generate-data', {
-        method: 'POST'
-    })
-    .then(response => response.json())
-    .then(result => {
-        if (result.success) {
-            dataStatus.textContent = 'Data generated successfully!';
-            dataStatus.className = 'ms-2 text-success';
-            
-            // Reload current view
-            if (document.getElementById('myTeachingCourses').classList.contains('active')) {
-                loadTeachingCourses();
-            } else if (document.getElementById('departmentManagement').classList.contains('active')) {
-                loadDepartmentInfo();
-            } else if (document.getElementById('myAdvisees').classList.contains('active')) {
-                loadAdvisees();
-            } else {
-                loadAvailableCourses();
-            }
-        } else {
-            dataStatus.textContent = 'Error: ' + result.message;
-            dataStatus.className = 'ms-2 text-danger';
-        }
-    })
-    .catch(error => {
-        console.error('Error generating data:', error);
-        dataStatus.textContent = 'Error: ' + error.message;
-        dataStatus.className = 'ms-2 text-danger';
-    });
-    
-    // Clear status message after 5 seconds
-    setTimeout(() => {
-        dataStatus.textContent = '';
-    }, 5000);
-}
-
-// Helper functions
 function setActiveNavItem(id) {
-    // Remove active class from all nav items
     document.querySelectorAll('.nav-link').forEach(item => {
         item.classList.remove('active');
     });
-    
-    // Add active class to selected item
+
     document.getElementById(id).classList.add('active');
 }
