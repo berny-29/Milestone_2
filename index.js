@@ -626,7 +626,6 @@ app.post('/api/admin/create-student', async (req, res) => {
 
             await mongoDb.collection('users').insertOne(newStudent);
 
-            // Send email
             try {
                 const { sendStudentCredentials } = require('./mailer');
                 await sendStudentCredentials(email, name, tempPassword);
@@ -1236,6 +1235,73 @@ app.get('/api/analytics/top-courses', async (req, res) => {
     } catch (err) {
         console.error('Error fetching analytics report:', err);
         res.status(500).json({ message: 'Database error' });
+    }
+});
+
+app.get('/api/analytics/recent-students', async (req, res) => {
+    const userRole = req.headers['user-role'];
+
+    try {
+        if (currentDbType === 'mongodb') {
+            const recentStudents = await mongoDb.collection('users')
+                .aggregate([
+                    { $match: { userType: 'student' } },
+                    {
+                        $addFields: {
+                            numericId: {
+                                $toInt: {
+                                    $substr: [
+                                        "$userId",
+                                        3,
+                                        -1
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    { $sort: { numericId: -1 } },
+                    { $limit: 5 }
+                ])
+                .toArray();
+
+            const transformed = recentStudents.map(student => ({
+                student_id: fromMongoId(student.userId),
+                name: student.name,
+                email: student.email,
+                dob: student.dob,
+                role_name: student.roleId === 1 ? 'Student' : 'Student Advisor',
+                account_type: student.accountType || 'regular',
+                created_at: student.createdAt,
+                creation_status: 'Active'
+            }));
+
+            res.json(transformed);
+        } else {
+            const [rows] = await pool.query(`
+                SELECT
+                    s.student_id,
+                    s.name,
+                    s.email,
+                    s.dob,
+                    CASE
+                        WHEN r.role_name = 'student' THEN 'Student'
+                        WHEN r.role_name = 'student_advisor' THEN 'Student Advisor'
+                        ELSE r.role_name
+                        END as role_name,
+                    sa.account_type,
+                    'Active' as creation_status
+                FROM STUDENT s
+                         JOIN ROLE r ON s.role_id = r.role_id
+                         JOIN STUDENT_ACCOUNT sa ON s.student_id = sa.student_id
+                ORDER BY s.student_id DESC
+                    LIMIT 5
+            `);
+
+            res.json(rows);
+        }
+    } catch (err) {
+        console.error('Error fetching recent students:', err);
+        res.status(500).json({ error: 'Database error' });
     }
 });
 

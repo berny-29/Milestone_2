@@ -577,52 +577,221 @@ function createStudent() {
         });
 }
 
+function renderTopCoursesOnly(contentArea, topCourses) {
+    let html = `
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-graph-up"></i> Top 5 Courses by Enrollment
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Course Name</th>
+                                <th>Professor</th>
+                                <th>Department</th>
+                                <th>Enrolled Students</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+    if (topCourses.length === 0) {
+        html += '<tr><td colspan="4" class="text-center">No data available</td></tr>';
+    } else {
+        topCourses.forEach(row => {
+            html += `
+                <tr>
+                    <td><strong>${row.course_name}</strong></td>
+                    <td>${row.professor_name}</td>
+                    <td>${row.department_name || 'N/A'}</td>
+                    <td class="text-center">
+                        <span class="badge bg-primary rounded-pill">${row.enrollment_count}</span>
+                    </td>
+                </tr>`;
+        });
+    }
+
+    html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert alert-info mt-3" role="alert">
+            <i class="bi bi-info-circle"></i>
+            <strong>Limited Access:</strong> Additional analytics are available for administrative staff only.
+        </div>`;
+
+    contentArea.innerHTML = html;
+}
+
 function loadAnalyticsReport() {
     setActiveNavItem('analyticsReport');
     const contentArea = document.getElementById('contentArea');
+    const userRole = localStorage.getItem('userRole');
+
     contentArea.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary"></div></div>';
 
-    fetch('/api/analytics/top-courses')
-        .then(response => response.json())
-        .then(data => {
-            let html = `
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Top 5 Courses by Enrollment</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Course Name</th>
-                                        <th>Professor</th>
-                                        <th>Department</th>
-                                        <th>Enrolled Students</th>
-                                    </tr>
-                                </thead>
-                                <tbody>`;
+    if (userRole !== 'administrative_staff') {
+        fetch('/api/analytics/top-courses')
+            .then(response => response.json())
+            .then(topCourses => {
+                renderTopCoursesOnly(contentArea, topCourses);
+            })
+            .catch(error => {
+                console.error('Error loading analytics:', error);
+                contentArea.innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Error loading analytics:</strong> ${error.message}
+                    </div>`;
+            });
+        return;
+    }
 
-            if (data.length === 0) {
+    Promise.all([
+        fetch('/api/analytics/top-courses'),
+        fetch('/api/analytics/recent-students', {
+            headers: {
+                'user-role': userRole
+            }
+        })
+    ])
+        .then(responses => Promise.all(responses.map(r => {
+            if (!r.ok) {
+                throw new Error(`HTTP error! status: ${r.status}`);
+            }
+            return r.json();
+        })))
+        .then(([topCourses, recentStudents]) => {
+            let html = `
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i> Top 5 Courses by Enrollment
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Course Name</th>
+                                    <th>Professor</th>
+                                    <th>Department</th>
+                                    <th>Enrolled Students</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+            if (topCourses.length === 0) {
                 html += '<tr><td colspan="4" class="text-center">No data available</td></tr>';
             } else {
-                data.forEach(row => {
+                topCourses.forEach(row => {
                     html += `
-                        <tr>
-                            <td>${row.course_name}</td>
-                            <td>${row.professor_name}</td>
-                            <td>${row.department_name}</td>
-                            <td>${row.enrollment_count}</td>
-                        </tr>`;
+                    <tr>
+                        <td><strong>${row.course_name}</strong></td>
+                        <td>${row.professor_name}</td>
+                        <td>${row.department_name || 'N/A'}</td>
+                        <td class="text-center">
+                            <span class="badge bg-primary rounded-pill">${row.enrollment_count}</span>
+                        </td>
+                    </tr>`;
                 });
             }
 
             html += `</tbody></table></div></div></div>`;
+
+            html += `
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-plus-fill"></i> Last 5 Created Student Accounts
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Date of Birth</th>
+                                    <th>Role</th>
+                                    <th>Account Type</th>
+                                    <th>Created</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+            if (!recentStudents || recentStudents.length === 0) {
+                html += '<tr><td colspan="8" class="text-center">No student accounts found</td></tr>';
+            } else {
+                recentStudents.forEach((student, index) => {
+                    const dob = new Date(student.dob).toLocaleDateString();
+                    const roleColor = student.role_name.includes('Advisor') ? 'success' : 'primary';
+                    const statusColor = student.creation_status === 'New' ? 'warning' :
+                        student.creation_status === 'Recent' ? 'info' : 'success';
+
+                    const rowClass = index % 2 === 0 ? '' : 'table-light';
+
+                    let createdDisplay = `#${student.student_id}`;
+                    if (student.created_at) {
+                        const createdDate = new Date(student.created_at);
+                        createdDisplay = createdDate.toLocaleDateString() + ' ' + createdDate.toLocaleTimeString();
+                    }
+
+                    html += `
+                    <tr class="${rowClass}">
+                        <td>
+                            <span class="badge bg-secondary">#${student.student_id}</span>
+                        </td>
+                        <td><strong>${student.name}</strong></td>
+                        <td>
+                            <a href="mailto:${student.email}" class="text-decoration-none">
+                                ${student.email}
+                            </a>
+                        </td>
+                        <td>${dob}</td>
+                        <td>
+                            <span class="badge bg-${roleColor}">
+                                ${student.role_name}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                ${student.account_type}
+                            </span>
+                        </td>
+                        <td>
+                            <small>${createdDisplay}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-${statusColor}">
+                                ${student.creation_status}
+                            </span>
+                        </td>
+                    </tr>`;
+                });
+            }
+
             contentArea.innerHTML = html;
         })
         .catch(error => {
             console.error('Error loading analytics report:', error);
-            contentArea.innerHTML = `<div class="alert alert-danger">Error loading report: ${error.message}</div>`;
+            contentArea.innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Error loading analytics:</strong> ${error.message}
+                <br>
+                <small>Please try refreshing the page or contact support if the problem persists.</small>
+            </div>`;
         });
 }
 
