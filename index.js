@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { v4: uuidv4 } = require('uuid');
 
 const express = require('express');
 const mysql = require('mysql2/promise');
@@ -371,7 +372,7 @@ async function migrateToMongoDB() {
                 credits: enrollment.credits,
                 grade: enrollment.grade,
                 enrolledAt: new Date()
-            }));
+            })).filter(doc => doc.studentId && doc.courseId);
             await mongoDb.collection('enrollments').insertMany(enrollmentDocs);
             stats.enrollments = enrollmentDocs.length;
 
@@ -990,7 +991,7 @@ app.post('/api/enrollments', async (req, res) => {
                 });
             }
 
-            const enrollmentId = await getNextId('enrollment');
+            const enrollmentId = uuidv4();
 
             const enrollment = {
                 enrollmentId,
