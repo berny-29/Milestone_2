@@ -562,7 +562,7 @@ function createStudent() {
 
                 setTimeout(() => {
                     loadStudentManagement();
-                }, 5000);
+                }, 15000);
             } else {
                 alert('Failed to create student account: ' + result.message);
             }

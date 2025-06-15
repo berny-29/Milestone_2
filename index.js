@@ -47,6 +47,7 @@ async function connectMongoDB() {
         await mongoDb.collection('enrollments').createIndex({ courseId: 1 });
         await mongoDb.collection('enrollments').createIndex({ enrollmentId: 1 }, { unique: true });
         await mongoDb.collection('departments').createIndex({ departmentId: 1 }, { unique: true });
+        await mongoDb.collection('courses').createIndex({ enrollmentCount: -1 });
 
         return mongoDb;
     } catch (error) {
