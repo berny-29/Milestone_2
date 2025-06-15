@@ -1296,7 +1296,7 @@ app.get('/api/analytics/recent-students', async (req, res) => {
                          JOIN ROLE r ON s.role_id = r.role_id
                          JOIN STUDENT_ACCOUNT sa ON s.student_id = sa.student_id
                 ORDER BY s.student_id DESC
-                    LIMIT 5
+                LIMIT 5
             `);
 
             res.json(rows);
