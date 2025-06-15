@@ -1,0 +1,44 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=mariadb
+      - DB_USER=admin
+      - DB_PASSWORD=adminpass
+      - DB_NAME=university
+      - DB_PORT=3306
+      - MONGO_URI=mongodb://mongodb:27017/university
+      - ENABLE_MONGODB=true
+      - SMTP_HOST=sandbox.smtp.mailtrap.io
+      - SMTP_PORT=2525
+      - SMTP_USER=76b7cfe5ca82aa
+      - SMTP_PASS=f4db7a6259a34f
+    depends_on:
+      - mariadb
+      - mongodb
+
+  mariadb:
+    image: mariadb:11
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+      - MYSQL_DATABASE=university
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=adminpass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./init/mariadb:/docker-entrypoint-initdb.d
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mariadb_data:
+  mongodb_data:
